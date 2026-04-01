@@ -368,6 +368,34 @@
       position: relative;
     }
 
+    /* Markdown rendered output */
+    .output-box.rendered { white-space: normal; }
+    .output-box.rendered h1, .output-box.rendered h2, .output-box.rendered h3 {
+      color: var(--accent); font-family: var(--mono); margin: 14px 0 6px;
+      font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .output-box.rendered strong { color: var(--text); font-weight: 600; }
+    .output-box.rendered em { color: var(--text-mid); }
+    .output-box.rendered ul, .output-box.rendered ol {
+      padding-left: 20px; margin: 6px 0;
+    }
+    .output-box.rendered li { margin: 4px 0; }
+    .output-box.rendered hr {
+      border: none; border-top: 1px solid var(--border); margin: 12px 0;
+    }
+    .output-box.rendered p { margin: 6px 0; }
+    .output-box.rendered code {
+      background: rgba(0,194,255,0.08); color: var(--accent);
+      padding: 2px 6px; border-radius: 4px; font-family: var(--mono); font-size: 12px;
+    }
+
+    /* Warning banner */
+    .alert-warning {
+      background: rgba(255,179,71,0.07);
+      border: 1px solid rgba(255,179,71,0.25);
+      color: var(--warning);
+    }
+
     .output-box.empty {
       color: var(--text-dim);
       font-style: italic;
@@ -527,6 +555,29 @@
     <div class="nav-item" onclick="showPage('config')">
       <span class="nav-icon">⚙️</span> Configuración
     </div>
+    <hr class="divider" style="margin: 8px 1.25rem;">
+    <!-- Proyecto activo en sidebar -->
+    <div style="padding: 0 1.25rem; margin-top: 4px;">
+      <div class="sidebar-label">Proyecto activo</div>
+      <div id="sidebarProject" style="
+        font-family: var(--mono);
+        font-size: 11.5px;
+        color: var(--accent);
+        background: rgba(0,194,255,0.07);
+        border: 1px solid rgba(0,194,255,0.18);
+        border-radius: 6px;
+        padding: 7px 10px;
+        word-break: break-word;
+        line-height: 1.4;
+      ">— Sin proyecto —</div>
+      <div id="sidebarQA" style="
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--text-dim);
+        margin-top: 5px;
+        padding-left: 2px;
+      "></div>
+    </div>
   </nav>
 
   <!-- Main -->
@@ -538,6 +589,25 @@
       <span style="white-space:nowrap; font-weight:500;">API Key de Groq:</span>
       <input type="password" id="apiKeyInput" placeholder="gsk_..." />
       <button class="btn btn-secondary" style="white-space:nowrap;" onclick="saveApiKey()">Guardar</button>
+    </div>
+
+    <!-- Project Banner -->
+    <div id="projectBanner" style="display:none;
+      background: rgba(0,194,255,0.05);
+      border: 1px solid rgba(0,194,255,0.15);
+      border-radius: 10px;
+      padding: 10px 18px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--text-mid);
+    ">
+      <span style="font-size:16px;">📁</span>
+      <span style="font-family:var(--mono); font-size:11px; color:var(--text-dim); letter-spacing:0.08em;">PROYECTO:</span>
+      <span id="projectBannerName" style="font-family:var(--mono); font-size:13px; color:var(--accent); font-weight:600;"></span>
+      <span style="margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--text-dim);">QA: <span id="projectBannerQA" style="color:var(--text-mid);"></span></span>
+      <button class="btn btn-secondary" style="padding:5px 10px; font-size:11px;" onclick="showPage('config'); document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active')); document.querySelectorAll('.nav-item')[3].classList.add('active');">✏️ Editar</button>
     </div>
 
     <!-- PAGE: Análisis de Ticket -->
@@ -556,7 +626,17 @@
           <div class="tag tag-yellow">INPUT</div>
         </div>
         <div class="card-body" style="display:flex; flex-direction:column; gap:12px;">
-          <label class="field-label">Pega aquí el contenido del ticket de Jira</label>
+          <div style="display:flex; gap:8px; align-items:flex-end;">
+            <div style="flex:1;">
+              <label class="field-label">Traer ticket desde Jira (ej: ARCODE-201)</label>
+              <input type="text" id="jiraTicketId" placeholder="Ej: ARCODE-201" style="min-height:unset;" />
+            </div>
+            <button class="btn btn-secondary" id="btnFetchJira" onclick="fetchJiraTicket()" style="white-space:nowrap; margin-bottom:1px;">
+              <div class="spinner" id="spinnerFetchJira"></div>
+              🔗 Traer de Jira
+            </button>
+          </div>
+          <label class="field-label">O pega aquí el contenido del ticket de Jira</label>
           <textarea id="ticketInput" placeholder="Como usuario, quiero poder iniciar sesión con mi correo y contraseña para acceder al sistema...
 
 Criterios de aceptación:
@@ -626,7 +706,10 @@ Criterios de aceptación:
         </div>
         <div class="card-body" style="display:flex; flex-direction:column; gap:12px;">
           <div class="alert alert-info">
-            💡 Claude analizará si la duda es válida para escalar al cliente y redactará una pregunta clara y formal.
+            💡 La IA analizará si la duda es válida para escalar al cliente y redactará una pregunta clara y formal.
+          </div>
+          <div class="alert alert-warning" id="warnContexto" style="display:none;">
+            ⚠️ No has ingresado contexto del ticket. El análisis puede ser menos preciso. Se recomienda completar el campo de contexto.
           </div>
           <div style="display:flex; justify-content:flex-end;">
             <button class="btn btn-primary" id="btnAnalizarAT" onclick="analizarAT()">
@@ -636,7 +719,7 @@ Criterios de aceptación:
           </div>
           <div class="output-box empty" id="outputAT">El análisis y la pregunta redactada aparecerán aquí...</div>
           <div class="output-actions">
-            <button class="btn btn-secondary" onclick="copyOutput('outputAT')">📋 Copiar</button>
+            <button class="btn btn-secondary" onclick="copyOutputText('outputAT')">📋 Copiar</button>
             <button class="btn btn-success" onclick="exportarTexto('outputAT', 'pregunta_cliente')">⬇ Exportar</button>
           </div>
         </div>
@@ -711,11 +794,11 @@ Criterios de aceptación:
 
       <div class="card">
         <div class="card-header">
-          <div class="card-title">🔑 API Key de Claude</div>
+          <div class="card-title">🔑 API Key de Groq</div>
         </div>
         <div class="card-body" style="display:flex; flex-direction:column; gap:12px;">
           <div class="alert alert-info">
-            💡 Tu API Key de Groq se guarda solo en este navegador. Es completamente gratis en console.groq.com
+            💡 Tu API Key de Groq se guarda solo en este navegador (localStorage). Obtén una gratis en console.groq.com
           </div>
           <label class="field-label">Groq API Key (gratis en console.groq.com)</label>
           <input type="password" id="configApiKey" placeholder="gsk_..." />
@@ -738,6 +821,32 @@ Criterios de aceptación:
           <div style="display:flex; justify-content:flex-end;">
             <button class="btn btn-primary" onclick="saveConfig()">💾 Guardar configuración</button>
           </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">🔗 Integración con Jira</div>
+          <div class="tag tag-green">NUEVO</div>
+        </div>
+        <div class="card-body" style="display:flex; flex-direction:column; gap:12px;">
+          <div class="alert alert-info">
+            💡 Conecta con tu Jira Cloud para traer tickets automáticamente. Tus credenciales se guardan solo en este navegador.
+          </div>
+          <label class="field-label">Dominio de Jira</label>
+          <input type="text" id="jiraDomain" placeholder="Ej: fm4024178.atlassian.net" />
+          <label class="field-label">Email de Jira</label>
+          <input type="text" id="jiraEmail" placeholder="Ej: tu@email.com" />
+          <label class="field-label">API Token de Jira</label>
+          <input type="password" id="jiraToken" placeholder="ATATT3x..." />
+          <div style="display:flex; gap:8px; justify-content:flex-end;">
+            <button class="btn btn-secondary" onclick="testJiraConnection()">
+              <div class="spinner" id="spinnerJiraTest"></div>
+              🧪 Probar conexión
+            </button>
+            <button class="btn btn-primary" onclick="saveJiraConfig()">💾 Guardar</button>
+          </div>
+          <div id="jiraTestResult" style="display:none;" class="alert"></div>
         </div>
       </div>
     </div>
@@ -769,10 +878,10 @@ Criterios de aceptación:
 
   function saveApiKeyFromConfig() {
     const key = document.getElementById('configApiKey').value.trim();
-    if (!key) return alert('Por favor ingresa tu API Key de Gemini');
+    if (!key) return alert('Por favor ingresa tu API Key de Groq');
     localStorage.setItem('qaassist_api_key', key);
     document.getElementById('apiBanner').style.display = 'none';
-    alert('✅ API Key de Gemini guardada correctamente');
+    alert('✅ API Key de Groq guardada correctamente');
   }
 
   function clearApiKey() {
@@ -785,6 +894,7 @@ Criterios de aceptación:
   function saveConfig() {
     localStorage.setItem('qaassist_project', document.getElementById('projectName').value);
     localStorage.setItem('qaassist_qa_name', document.getElementById('qaName').value);
+    updateProjectDisplay();
     alert('✅ Configuración guardada');
   }
 
@@ -799,7 +909,156 @@ Criterios de aceptación:
     const qaName = localStorage.getItem('qaassist_qa_name');
     if (project) document.getElementById('projectName').value = project;
     if (qaName) document.getElementById('qaName').value = qaName;
+
+    // Load Jira config
+    const jiraDomain = localStorage.getItem('qaassist_jira_domain');
+    const jiraEmail = localStorage.getItem('qaassist_jira_email');
+    const jiraToken = localStorage.getItem('qaassist_jira_token');
+    if (jiraDomain) document.getElementById('jiraDomain').value = jiraDomain;
+    if (jiraEmail) document.getElementById('jiraEmail').value = jiraEmail;
+    if (jiraToken) document.getElementById('jiraToken').value = jiraToken;
+
+    updateProjectDisplay();
   });
+
+  // --- Jira Config ---
+  function saveJiraConfig() {
+    const domain = document.getElementById('jiraDomain').value.trim();
+    const email = document.getElementById('jiraEmail').value.trim();
+    const token = document.getElementById('jiraToken').value.trim();
+    if (!domain || !email || !token) return alert('Por favor completa todos los campos de Jira');
+    localStorage.setItem('qaassist_jira_domain', domain);
+    localStorage.setItem('qaassist_jira_email', email);
+    localStorage.setItem('qaassist_jira_token', token);
+    alert('✅ Configuración de Jira guardada correctamente');
+  }
+
+  const JIRA_PROXY = 'https://jira-proxy.fm4024178.workers.dev';
+
+  async function testJiraConnection() {
+    const domain = document.getElementById('jiraDomain').value.trim();
+    const email = document.getElementById('jiraEmail').value.trim();
+    const token = document.getElementById('jiraToken').value.trim();
+    if (!domain || !email || !token) return alert('Por favor completa todos los campos primero');
+
+    const btn = document.getElementById('spinnerJiraTest');
+    btn.style.display = 'inline-block';
+
+    const resultDiv = document.getElementById('jiraTestResult');
+    resultDiv.style.display = 'none';
+
+    try {
+      const credentials = btoa(`${email}:${token}`);
+      const jiraUrl = `https://${domain}/rest/api/3/myself`;
+      const res = await fetch(`${JIRA_PROXY}?url=${encodeURIComponent(jiraUrl)}`, {
+        headers: {
+          'Authorization': `Basic ${credentials}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        resultDiv.style.display = 'flex';
+        resultDiv.className = 'alert alert-info';
+        resultDiv.textContent = `✅ Conexión exitosa. Conectado como: ${data.displayName} (${data.emailAddress})`;
+      } else {
+        throw new Error('Credenciales incorrectas o sin permisos');
+      }
+    } catch (e) {
+      resultDiv.style.display = 'flex';
+      resultDiv.className = 'alert alert-warning';
+      resultDiv.textContent = `❌ Error de conexión: ${e.message}. Verifica tu dominio, email y token.`;
+    } finally {
+      btn.style.display = 'none';
+    }
+  }
+
+  async function fetchJiraTicket() {
+    const ticketId = document.getElementById('jiraTicketId').value.trim().toUpperCase();
+    if (!ticketId) return alert('Por favor ingresa el ID del ticket (ej: ARCODE-201)');
+
+    const domain = localStorage.getItem('qaassist_jira_domain');
+    const email = localStorage.getItem('qaassist_jira_email');
+    const token = localStorage.getItem('qaassist_jira_token');
+
+    if (!domain || !email || !token) {
+      return alert('Primero configura tu conexión con Jira en ⚙️ Configuración');
+    }
+
+    const btn = document.getElementById('btnFetchJira');
+    const spinner = document.getElementById('spinnerFetchJira');
+    btn.disabled = true;
+    spinner.style.display = 'inline-block';
+
+    try {
+      const credentials = btoa(`${email}:${token}`);
+      const jiraUrl = `https://${domain}/rest/api/3/issue/${ticketId}`;
+      const res = await fetch(`${JIRA_PROXY}?url=${encodeURIComponent(jiraUrl)}`, {
+        headers: {
+          'Authorization': `Basic ${credentials}`,
+          'Accept': 'application/json'
+        }
+      });
+
+      if (!res.ok) throw new Error('Ticket no encontrado o sin permisos');
+
+      const data = await res.json();
+      const summary = data.fields.summary || '';
+      const description = extractJiraText(data.fields.description) || '';
+      const acceptance = extractJiraText(data.fields.customfield_10016) || '';
+      const priority = data.fields.priority?.name || '';
+      const status = data.fields.status?.name || '';
+      const assignee = data.fields.assignee?.displayName || 'Sin asignar';
+
+      const ticketText = `Ticket ID: ${ticketId}
+Título: ${summary}
+Estado: ${status}
+Prioridad: ${priority}
+Responsable: ${assignee}
+
+Descripción:
+${description}
+
+${acceptance ? `Criterios de Aceptación:\n${acceptance}` : ''}`.trim();
+
+      document.getElementById('ticketInput').value = ticketText;
+      alert(`✅ Ticket ${ticketId} cargado correctamente`);
+
+    } catch (e) {
+      alert(`❌ Error: ${e.message}`);
+    } finally {
+      btn.disabled = false;
+      spinner.style.display = 'none';
+    }
+  }
+
+  function extractJiraText(node) {
+    if (!node) return '';
+    if (typeof node === 'string') return node;
+    if (node.type === 'text') return node.text || '';
+    if (node.content) return node.content.map(extractJiraText).join(' ');
+    return '';
+  }
+
+  function updateProjectDisplay() {
+    const project = localStorage.getItem('qaassist_project') || '';
+    const qaName = localStorage.getItem('qaassist_qa_name') || '';
+
+    // Sidebar
+    document.getElementById('sidebarProject').textContent = project || '— Sin proyecto —';
+    document.getElementById('sidebarQA').textContent = qaName ? '👤 ' + qaName : '';
+
+    // Top banner
+    const banner = document.getElementById('projectBanner');
+    if (project) {
+      banner.style.display = 'flex';
+      document.getElementById('projectBannerName').textContent = project;
+      document.getElementById('projectBannerQA').textContent = qaName || 'No asignado';
+    } else {
+      banner.style.display = 'none';
+    }
+  }
 
   // --- Groq API call ---
   async function callClaude(prompt, btnId, spinnerId) {
@@ -852,10 +1111,13 @@ Criterios de aceptación:
 
     const project = localStorage.getItem('qaassist_project') || 'Salesforce';
 
+    const ticketId = ticket.match(/[A-Z]+-\d+/)?.[0] || 'SIN-ID';
+
     const prompt = `Eres un QA Engineer experto en Salesforce para el proyecto "${project}".
 
 Analiza la siguiente historia de usuario de Jira y genera casos de prueba completos y detallados.
 
+TICKET ID: ${ticketId}
 HISTORIA DE USUARIO:
 ${ticket}
 
@@ -865,12 +1127,15 @@ Por favor genera:
 3. Casos de prueba de borde (edge cases)
 
 Para cada caso de prueba incluye:
-- ID (TC-001, TC-002, etc.)
+- ID (${ticketId}-TC-001, ${ticketId}-TC-002, etc.)
 - Título
 - Precondiciones
-- Pasos
+- Pasos detallados (incluye datos de prueba específicos y concretos, por ejemplo: nombres reales, emails de ejemplo, valores numéricos, fechas)
 - Resultado esperado
 - Prioridad (Alta/Media/Baja)
+- Tiempo estimado de ejecución (en minutos)
+
+Importante: en los pasos usa datos de prueba concretos y realistas, no genéricos. Por ejemplo en lugar de "ingresar un email" escribe "ingresar el email prueba@arcode.com".
 
 Responde en español, de forma clara y estructurada.`;
 
@@ -880,7 +1145,7 @@ Responde en español, de forma clara y estructurada.`;
 
     const result = await callClaude(prompt, 'btnGenerarCasos', 'spinnerCasos');
     if (result) {
-      output.textContent = result;
+      renderOutput('outputCasos', result);
     } else {
       output.classList.add('empty');
       output.textContent = 'Los casos de prueba aparecerán aquí...';
@@ -893,6 +1158,19 @@ Responde en español, de forma clara y estructurada.`;
     const duda = document.getElementById('atDuda').value.trim();
     if (!duda) return alert('Por favor ingresa la duda del desarrollador');
 
+    // Fix 3: Advertencia si no hay contexto
+    const warnContexto = document.getElementById('warnContexto');
+    if (!contexto) {
+      warnContexto.style.display = 'flex';
+    } else {
+      warnContexto.style.display = 'none';
+    }
+
+    const today = new Date();
+    const deadline = new Date(today);
+    deadline.setDate(today.getDate() + 2);
+    const deadlineStr = deadline.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+
     const prompt = `Eres un QA Engineer senior experto en Salesforce. Tu rol es evaluar las dudas (AT) de los desarrolladores y decidir si deben escalarse al cliente.
 
 CONTEXTO DEL TICKET:
@@ -903,18 +1181,29 @@ ${duda}
 
 Por favor:
 1. EVALÚA si esta duda es válida para escalar al cliente (justifica tu decisión)
-2. Si es válida, REDACTA una pregunta clara, formal y profesional para enviar al cliente
+2. Si es válida, REDACTA una pregunta clara, formal y profesional para enviar al cliente. La pregunta debe:
+   - Incluir una fecha límite de respuesta: ${deadlineStr}
+   - Mencionar el impacto en el desarrollo si no se responde a tiempo
+   - Ser concisa y fácil de entender para el cliente
 3. Si NO es válida, explica por qué y proporciona una respuesta directa al desarrollador
 
 Responde en español. Sé conciso pero completo. Usa un tono profesional y formal.`;
 
     const output = document.getElementById('outputAT');
-    output.classList.remove('empty');
+    output.classList.remove('empty', 'rendered');
     output.textContent = 'Analizando AT...';
 
     const result = await callClaude(prompt, 'btnAnalizarAT', 'spinnerAT');
     if (result) {
-      output.textContent = result;
+      // Fix 2: Render markdown
+      output.classList.add('rendered');
+      output.innerHTML = renderMarkdown(result);
+      // Store raw text for copy/export
+      output.dataset.rawText = result;
+
+      // Fix 4: Marcar step indicator como done si existe
+      const stepAT = document.querySelector('.step[data-module="at"]');
+      if (stepAT) stepAT.classList.add('done');
     } else {
       output.classList.add('empty');
       output.textContent = 'El análisis y la pregunta redactada aparecerán aquí...';
@@ -930,8 +1219,14 @@ Responde en español. Sé conciso pero completo. Usa un tono profesional y forma
 
     if (!respCliente) return alert('Por favor pega la respuesta del cliente');
 
+    const ticketRef = atOriginal.match(/[A-Z]+-\d+/)?.[0] || '';
+    const implDate = new Date();
+    implDate.setDate(implDate.getDate() + 3);
+    const implDateStr = implDate.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+
     const prompt = `Eres un QA Engineer senior. Debes comunicar la respuesta del cliente al desarrollador de forma clara y profesional.
 
+${ticketRef ? `NÚMERO DE TICKET: ${ticketRef}` : ''}
 AT ORIGINAL DEL DESARROLLADOR:
 ${atOriginal || 'No especificado'}
 
@@ -940,15 +1235,19 @@ ${respCliente}
 
 CANAL DE ENVÍO: ${canal}
 FIRMA: ${qaName}
+FECHA ESTIMADA DE IMPLEMENTACIÓN: ${implDateStr}
 
 Por favor:
 1. ANALIZA si la respuesta del cliente es completa y clara, o si tiene ambigüedades
 2. Si hay ambigüedades, indícalas
-3. REDACTA el mensaje completo para enviar al desarrollador vía ${canal}, adaptando el tono y formato al canal
-4. El mensaje debe incluir la respuesta del cliente claramente interpretada y cualquier acción requerida por el dev
+3. REDACTA el mensaje completo para enviar al desarrollador vía ${canal}, adaptando el tono y formato al canal. El mensaje debe:
+   - Incluir el número de ticket ${ticketRef ? ticketRef : ''} como referencia
+   - Indicar la fecha estimada de implementación: ${implDateStr}
+   - Incluir la respuesta del cliente claramente interpretada
+   - Listar las acciones concretas requeridas por el dev
+4. Cierra el mensaje con la firma del QA
 
 Responde en español. Formato adecuado para ${canal}.`;
-
 
     const output = document.getElementById('outputRespuesta');
     output.classList.remove('empty');
@@ -956,7 +1255,7 @@ Responde en español. Formato adecuado para ${canal}.`;
 
     const result = await callClaude(prompt, 'btnGenerarRespuesta', 'spinnerRespuesta');
     if (result) {
-      output.textContent = result;
+      renderOutput('outputRespuesta', result);
     } else {
       output.classList.add('empty');
       output.textContent = 'El mensaje para el desarrollador aparecerá aquí...';
@@ -964,24 +1263,99 @@ Responde en español. Formato adecuado para ${canal}.`;
   }
 
   // --- Utilities ---
+  function renderMarkdown(text) {
+    return text
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/`(.+?)`/g, '<code>$1</code>')
+      .replace(/^---$/gm, '<hr>')
+      .replace(/^\s*[-*] (.+)$/gm, '<li>$1</li>')
+      .replace(/(<li>.*<\/li>)/gs, '<ul>$1</ul>')
+      .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+      .replace(/\n{2,}/g, '</p><p>')
+      .replace(/^(?!<[hul]|<li|<hr|<\/)(.*\S.*)$/gm, '<p>$1</p>');
+  }
+
+  function renderOutput(elementId, text) {
+    const output = document.getElementById(elementId);
+    output.classList.remove('empty');
+    output.classList.add('rendered');
+    output.innerHTML = renderMarkdown(text);
+    output.dataset.rawText = text;
+  }
+
+  function copyOutputText(id) {
+    const el = document.getElementById(id);
+    const text = el.dataset.rawText || el.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      alert('✅ Copiado al portapapeles');
+    });
+  }
+
   function clearField(id) {
     document.getElementById(id).value = '';
   }
 
   function copyOutput(id) {
-    const text = document.getElementById(id).textContent;
+    const el = document.getElementById(id);
+    const text = el.dataset.rawText || el.textContent;
     navigator.clipboard.writeText(text).then(() => {
       alert('✅ Copiado al portapapeles');
     });
   }
 
   function exportarTexto(id, filename) {
-    const text = document.getElementById(id).textContent;
-    const blob = new Blob([text], { type: 'text/plain' });
+    const el = document.getElementById(id);
+    const content = el.dataset.rawText || el.textContent;
+
+    const project = localStorage.getItem('qaassist_project') || 'Sin proyecto';
+    const qaName = localStorage.getItem('qaassist_qa_name') || 'Sin asignar';
+    const now = new Date();
+    const fecha = now.toLocaleDateString('es-MX', { day: '2-digit', month: 'long', year: 'numeric' });
+    const hora = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
+
+    const separator = '='.repeat(60);
+    const divider = '-'.repeat(60);
+
+    const moduleNames = {
+      'outputCasos': 'CASOS DE PRUEBA',
+      'outputAT': 'ANÁLISIS DE AT Y PREGUNTA AL CLIENTE',
+      'outputRespuesta': 'RESPUESTA AL DESARROLLADOR'
+    };
+    const moduleName = moduleNames[id] || filename.toUpperCase().replace(/_/g, ' ');
+
+    const header = `${separator}
+ARCODE — QAassist for Salesforce
+${separator}
+Documento  : ${moduleName}
+Proyecto   : ${project}
+QA         : ${qaName}
+Fecha      : ${fecha}
+Hora       : ${hora}
+${divider}
+Generado con QAassist for Salesforce — Herramienta interna Arcode
+${separator}
+
+`;
+
+    const footer = `
+
+${divider}
+FIN DEL DOCUMENTO
+Proyecto: ${project} | QA: ${qaName} | ${fecha}
+${separator}`;
+
+    const fullText = header + content + footer;
+
+    const blob = new Blob([fullText], { type: 'text/plain; charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename + '_' + new Date().toISOString().slice(0,10) + '.txt';
+    a.download = filename + '_' + project.replace(/\s+/g, '_') + '_' + now.toISOString().slice(0,10) + '.txt';
     a.click();
     URL.revokeObjectURL(url);
   }
